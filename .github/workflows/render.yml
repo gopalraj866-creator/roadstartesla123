@@ -1,0 +1,92 @@
+name: Render Roadster film
+on:
+  workflow_dispatch:
+    inputs:
+      quality:
+        description: "Which outputs"
+        type: choice
+        default: both
+        options: [both, 1080p, 4k, preview]
+      frames_per_shard:
+        description: "Frames per job (smaller = more parallel jobs)"
+        default: "300"
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.m.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - name: Fetch textures + HDRIs
+        run: node scripts/fetch-assets.mjs
+      - uses: actions/upload-artifact@v4
+        with: { name: assets, path: assets, retention-days: 3 }
+      - id: m
+        run: |
+          python3 - <<'PY' >> $GITHUB_OUTPUT
+          import json, os
+          q="${{ inputs.quality }}"; fps=int("${{ inputs.frames_per_shard }}")
+          total=14400
+          res={"both":[1080,2160],"1080p":[1080],"4k":[2160],"preview":[360]}[q]
+          inc=[]
+          for r in res:
+              f=fps if r<2160 else max(60,fps//3)
+              if r==360: total_r=900
+              n=-(-14400//f) if r!=360 else 1
+              for i in range(n):
+                  a=i*f; b=min(14400,a+f)
+                  if r==360: a,b=0,300
+                  inc.append({"res":r,"idx":i,"from":a,"to":b})
+          print("matrix="+json.dumps({"include":inc}))
+          PY
+  render:
+    needs: setup
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.setup.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: actions/download-artifact@v4
+        with: { name: assets, path: assets }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: npm ci
+      - name: Render frames ${{ matrix.from }}-${{ matrix.to }} @ ${{ matrix.res }}p
+        env: { CHROME_PATH: /usr/bin/google-chrome }
+        run: node scripts/render.mjs --res ${{ matrix.res }} --from ${{ matrix.from }} --to ${{ matrix.to }} --out out/seg_${{ matrix.res }}_$(printf %04d ${{ matrix.idx }}).mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: seg-${{ matrix.res }}-${{ matrix.idx }}
+          path: out/*.mp4
+          retention-days: 3
+  assemble:
+    needs: render
+    if: ${{ always() && needs.render.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg python3-numpy python3-scipy
+      - uses: actions/download-artifact@v4
+        with: { pattern: "seg-*", path: segs, merge-multiple: true }
+      - name: Audio
+        run: node scripts/export-timeline.mjs && python3 scripts/make_audio.py
+      - name: Concatenate + mux
+        run: |
+          mkdir -p final
+          for r in 360 1080 2160; do
+            ls segs/seg_${r}_*.mp4 >/dev/null 2>&1 || continue
+            ls segs/seg_${r}_*.mp4 | sort | sed "s/^/file '/;s/$/'/" > list_$r.txt
+            ffmpeg -y -f concat -safe 0 -i list_$r.txt -i out/audio.wav -map 0:v -map 1:a -c:v copy -c:a aac -b:a 320k -shortest -movflags +faststart final/roadster_${r}p.mp4
+          done
+          ls -lh final
+      - uses: actions/upload-artifact@v4
+        with: { name: roadster-final, path: final, retention-days: 14 }
