@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Roadster – Technical Talk India</title>
+<meta name="viewport" content="width=1920,height=1080">
+<style>
+@font-face{font-family:Rajdhani;font-weight:500;src:url(/node_modules/@fontsource/rajdhani/files/rajdhani-latin-500-normal.woff2) format("woff2")}
+@font-face{font-family:Rajdhani;font-weight:700;src:url(/node_modules/@fontsource/rajdhani/files/rajdhani-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:Orbitron;font-weight:700;src:url(/node_modules/@fontsource/orbitron/files/orbitron-latin-700-normal.woff2) format("woff2")}
+@font-face{font-family:Orbitron;font-weight:900;src:url(/node_modules/@fontsource/orbitron/files/orbitron-latin-900-normal.woff2) format("woff2")}
+:root{--acc:#3fd7ff;--warn:#ffb020;--red:#ff4b4b}
+html,body{margin:0;width:1920px;height:1080px;background:#000;overflow:hidden;font-family:Rajdhani,sans-serif;color:#fff}
+#stage{position:absolute;inset:0;width:1920px;height:1080px}
+canvas{display:block;position:absolute;inset:0;width:1920px;height:1080px}
+#hud{position:absolute;inset:0;pointer-events:none}
+.abs{position:absolute}
+#vignette{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,transparent 55%,rgba(0,0,0,.55) 100%)}
+#fade{position:absolute;inset:0;background:#000;opacity:0}
+#flash{position:absolute;inset:0;background:#fff;opacity:0}
+#brand{left:56px;top:44px;font:900 26px Orbitron;letter-spacing:4px;text-shadow:0 2px 12px #000}
+#brand small{display:block;font:500 17px Rajdhani;letter-spacing:5px;color:var(--acc);margin-top:2px}
+#chapter{right:56px;top:46px;text-align:right;font:700 20px Rajdhani;letter-spacing:5px;color:#dfe9f2;text-shadow:0 2px 10px #000}
+#badge{right:56px;top:96px;padding:8px 18px;border:2px solid var(--warn);color:var(--warn);font:700 22px Rajdhani;letter-spacing:5px;background:rgba(20,12,0,.55);border-radius:3px}
+#speed{left:56px;bottom:56px;text-shadow:0 2px 14px #000}
+#speed .mph{font:700 128px/1 Rajdhani;letter-spacing:1px}
+#speed .u{font:700 26px Rajdhani;letter-spacing:5px;color:var(--acc);margin-left:10px}
+#speed .kmh{font:700 30px Rajdhani;letter-spacing:3px;color:#cfd8df;margin-top:4px}
+#speed .bar{width:420px;height:6px;background:rgba(255,255,255,.18);margin-top:12px}
+#speed .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),#fff);width:0}
+#timer{left:50%;bottom:64px;transform:translateX(-50%);text-align:center;text-shadow:0 2px 14px #000}
+#timer .big{font:700 92px/1 Rajdhani}
+#timer .lab{font:700 24px Rajdhani;letter-spacing:6px;color:var(--acc)}
+#timer .sub{font:500 20px Rajdhani;letter-spacing:3px;color:var(--warn)}
+#alt{right:56px;bottom:56px;text-align:right;text-shadow:0 2px 14px #000}
+#alt div{font:700 54px/1.1 Rajdhani}
+#alt span{font:700 20px Rajdhani;letter-spacing:5px;color:var(--acc);margin-right:12px}
+#lower{left:56px;bottom:272px;border-left:5px solid var(--acc);padding:4px 0 4px 20px;text-shadow:0 2px 14px #000}
+#lower .a{font:700 22px Rajdhani;letter-spacing:6px;color:var(--acc)}
+#lower .b{font:900 52px/1.05 Orbitron;letter-spacing:2px}
+#lower .c{font:500 24px Rajdhani;letter-spacing:2px;color:#d6e0e8}
+#title{left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;text-shadow:0 4px 30px #000}
+#title .t{font:900 88px/1.12 Orbitron;letter-spacing:4px;max-width:1700px}
+#title .s{font:700 34px Rajdhani;letter-spacing:10px;color:var(--acc);margin-top:24px}
+#count{left:0;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;font:900 380px Orbitron;text-shadow:0 0 60px rgba(63,215,255,.8)}
+#panel{left:56px;top:150px;width:720px}
+.card{background:rgba(6,12,18,.72);border:1px solid rgba(255,255,255,.18);border-left:5px solid var(--acc);padding:14px 22px;margin-bottom:16px;border-radius:3px}
+.card h4{margin:0 0 4px;font:700 22px Rajdhani;letter-spacing:4px;color:var(--acc)}
+.card p{margin:0;font:500 25px/1.28 Rajdhani;color:#eef3f7}
+.card.w{border-left-color:var(--warn)} .card.w h4{color:var(--warn)}
+.card.r{border-left-color:var(--red)} .card.r h4{color:var(--red)}
+.callout{position:absolute;font:700 20px Rajdhani;letter-spacing:3px;white-space:nowrap;text-shadow:0 2px 8px #000}
+.callout:before{content:"";position:absolute;left:-26px;top:7px;width:14px;height:14px;border:2px solid var(--warn);border-radius:50%;background:rgba(255,176,32,.35)}
+#foot{left:0;right:0;bottom:22px;text-align:center;font:500 17px Rajdhani;letter-spacing:3px;color:rgba(255,255,255,.55)}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="hud">
+  <div id="vignette"></div>
+  <div id="brand" class="abs">TECHNICAL TALK INDIA<small>AUTOMOTIVE DOCUMENTARY</small></div>
+  <div id="chapter" class="abs"></div>
+  <div id="badge" class="abs">CONCEPT SIMULATION</div>
+  <div id="speed" class="abs"><div><span class="mph">0</span><span class="u">MPH</span></div><div class="kmh">0 KM/H</div><div class="bar"><i></i></div></div>
+  <div id="timer" class="abs"><div class="lab">0–60 MPH</div><div class="big">0.00 s</div><div class="sub">ILLUSTRATIVE · CLAIMED, NOT VERIFIED</div></div>
+  <div id="alt" class="abs"><div><span>ALT</span><b id="altv">0 m</b></div><div><span>THRUST</span><b id="thv">0%</b></div></div>
+  <div id="lower" class="abs"><div class="a"></div><div class="b"></div><div class="c"></div></div>
+  <div id="title" class="abs"><div class="t"></div><div class="s"></div></div>
+  <div id="count" class="abs"></div>
+  <div id="panel" class="abs"></div>
+  <div id="callouts"></div>
+  <div id="foot" class="abs">Simulation for educational commentary · car model is a stand-in · flight and thrusters are a concept, not a real capability</div>
+  <div id="flash"></div>
+  <div id="fade"></div>
+</div>
+<script type="importmap">
+{"imports":{"three":"/node_modules/three/build/three.module.js","three/addons/":"/node_modules/three/examples/jsm/"}}
+</script>
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
